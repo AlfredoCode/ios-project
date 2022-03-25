@@ -1,0 +1,137 @@
+#!/bin/sh
+export POSIXLY_CORRECT=yes
+#clear
+
+########	FILTER SECTION	########
+
+help(){
+	echo "Usage:	corona [FILTERS] [COMMAND] [LOG [LOG2 [...]]]"
+	echo "	corona [-h]"
+	echo ""
+
+	echo "Popis:"
+	echo "	Skript filtruje záznamy osob s prokázanou nákazou koronavirem způsobujícím onemocnění COVID-19. Pokud je skriptu zadán také příkaz, nad filtrovanými záznamy daný příkaz provede."
+	echo "	Pokud skript nedostane ani filtr ani příkaz, opisuje záznamy na standardní výstup."
+	echo "	Skript umí zpracovat i záznamy komprimované pomocí nástrojů gzip a bzip2 (v případě, že název souboru končí .gz resp. .bz2)."
+	echo "	V případě, že skript na příkazové řádce nedostane soubory se záznamy (LOG, LOG2, …), očekává záznamy na standardním vstupu."
+	echo "	Pokud má skript vypsat seznam, každá položka je vypsána na jeden řádek a pouze jednou. Není-li uvedeno jinak, je pořadí řádků dáno abecedně. Položky se nesmí opakovat."
+	echo "	Grafy jsou vykresleny pomocí ASCII a jsou otočené doprava. Hodnota řádku je vyobrazena posloupností znaku mřížky #."
+	echo ""
+
+	echo "Návratová hodnota:"
+	echo "	Skript vrací úspěch v případě úspěšné operace. Interní chyba skriptu nebo chybné argumenty budou doprovázeny chybovým hlášením na stderr a neúspěšným návratovým kódem."
+	echo ""
+
+	echo "Seznam dostupných přepínačů:"
+	echo ""
+	echo "	-a DATETIME		Jsou uvažovány pouze záznamy po tomto datu (včetně tohoto data). DATETIME je formátu YYYY-MM-DD"
+	echo "	-b DATETIME		Jsou uvažovány pouze záznamy PŘED tímto datem (včetně tohoto data)"
+	echo "	-g GENDER		Jsou uvažovány pouze záznamy nakažených osob daného pohlaví. GENDER může být M (muži) nebo Z (ženy)"
+	echo "	-h			Vypíše nápovědu s krátkým popisem každého příkazu a přepínače"
+	echo "	-s [WIDTH]		U příkazů gender, age, daily, monthly, yearly, countries, districts a regions vypisuje data ne číselně, ale graficky v podobě histogramů."
+	echo "				Nepovinný parametr WIDTH nastavuje šířku histogramů, tedy délku nejdelšího řádku, na WIDTH. Tedy, WIDTH musí být kladné celé číslo."
+	echo "				Pokud není parametr WIDTH uveden, řídí se šířky řádků požadavky uvedenými níže."
+	echo "					-d DISTRICT_FILE — pro příkaz districts vypisuje místo LAU 1 kódu okresu jeho jméno. Mapování kódů na jména je v souboru DISTRICT_FILE"
+	echo "					-r REGIONS_FILE — pro příkaz regions vypisuje místo NUTS 3 kódu kraje jeho jméno. Mapování kódů na jména je v souboru REGIONS_FILE"
+	echo ""
+
+	echo "Seznam dostupných příkazů:"
+	echo ""
+	echo "	infected		Spočítá počet nakažených"
+	echo "	merge			Sloučí několik souborů se záznamy do jednoho, zachovávající původní pořadí (hlavička bude ve výstupu jen jednou)"
+	echo "	gender			Vypíše počet nakažených pro jednotlivá pohlaví"
+	echo "	age			Vypíše statistiku počtu nakažených osob dle věku"
+	echo "	daily			Vypíše statistiku nakažených osob pro jednotlivé dny"
+	echo "	monthly			Vypíše statistiku nakažených osob pro jednotlivé měsíce"
+	echo "	yearly			Vypíše statistiku nakažených osob pro jednotlivé roky"
+	echo "	countries		Vypíše statistiku nakažených osob pro jednotlivé země nákazy (bez ČR, tj. kódu cz)"
+	echo "	districts		Vypíše statistiku nakažených osob pro jednotlivé okresy"
+	echo "	regions			Vypíše statistiku nakažených osob pro jednotlivé kraje"
+	echo ""
+	echo ""
+
+	echo "Error Codes"
+	echo ""
+	echo "	0			Program skončil bez chyby"
+	echo "	1			Program se ukončil z důvodu výskytu chyby, výstup je doprovázen patřičným chybovým hlášením"
+	echo ""
+	exit 0
+}
+
+
+#validateAfterTime(){
+#	if expr "$afterTime" : "^[0-9][0-9][0-9][0-9]\-[0-9][0-9]\-[0-9][0-9]"; then
+#		$(echo $1 | awk -F \- '$2 > 12  || $2 <= 0 {exit 1}')
+#		if [ $? -eq 0 ]; then
+#			shift
+#			atCount=$((atCount+1))
+#			echo "Date Correct"
+#			break
+#		else
+#			errorDate
+#		fi
+#	else
+#		errorDateSpec
+#	fi
+#}
+
+
+
+
+
+
+########	ERROR SECTION	########
+
+errorDate(){
+	echo "Invalid date!" >&2
+	exit 1
+}
+errorDateSpec(){
+	echo "Wrong date format (YYYY-MM-DD) / date not specified!" >&2
+	exit 1
+}
+errorMultipleFilter(){
+	echo "Multiple usage of same filter!"
+	exit 1
+}
+
+
+
+########	VARIABLES	########
+
+afterTime="0"
+atCount=0
+
+########	Control Code	########
+while [ $# -gt 0 ]; do
+	option="$1"
+
+      case "$option" in
+        "-h")	help; shift;;
+	"-a")	if [ $atCount -eq 1 ]; then
+			errorMultipleFilter
+		fi
+		afterTime="$2"
+		if expr "$afterTime" : "^[0-9][0-9][0-9][0-9]\-[0-9][0-9]\-[0-9][0-9]"; then
+			$(echo $afterTime | awk -F \- '$2 > 12 || $2 <= 0{exit 1}')
+			if [ $? -eq 0 ]; then
+				shift
+				shift
+				atCount=$((atCount+1))
+				echo "Date Correct"
+			else
+				errorDate
+			fi
+		else
+			errorDateSpec
+		fi;;
+	"-b")	afterTime="$2"
+		validateAfterTime "$afterTime";;
+
+       	*)	echo "ERROR: Invalid option: \""$option"\"" >&2
+		exit 1;;
+      esac
+done
+
+
+
