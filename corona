@@ -5,8 +5,7 @@ export POSIXLY_CORRECT=yes
 ########	FILTER SECTION	########
 
 help(){
-	echo "Usage:	corona [FILTERS] [COMMAND] [LOG [LOG2 [...]]]"
-	echo "	corona [-h]"
+	echo "Usage:	./corona [-h] [FILTERS] [COMMAND] [LOG [LOG2 [...]]]"
 	echo ""
 
 	echo "Popis:"
@@ -75,26 +74,68 @@ errorMultipleFilter(){
 	echo "Multiple usage of same filter \"$1\"!" >&2
 	exit 1
 }
-
-
+errorGender(){
+	echo "Filter \"$1\" has to be M / Z!" >&2
+	exit 1
+}
+errorMultipleCommand(){
+	echo "You cannot enter more than 1 COMMAND!" >&2
+	exit 1
+}
 
 ########	VARIABLES	########
 
-afterTime="0"
+afterTime="0000-01-01"
 atCount=0
 
-beforeTime="0"
+beforeTime="9999-12-31"
 btCount=0
 
+genderCount=0
+gender="none"
 
+storedInput=""
+termInput="cat $storedInput"
+
+command="default"
+cmdCount=0
+
+newLine=$(printf "\r\n")
+
+filters="0000"
 
 ########	Validation	########
+validateGender(){	
+	if [ $genderCount -eq 1 ]; then
+			errorMultipleFilter "$1"
+	fi
+	genderCount=$((genderCount+1))
+	if [ "$2" = "M" ]; then
+		gender="$2"
+		#echo "Gender is: \"$gender\""
+		return 0
+	elif [ "$2" = "Z" ]; then
+		gender="$2"
+		#echo "Gender is: \"$gender\""
+		return 0
+	else
+		errorGender "$1"
+	fi	
+}
+
+validateCommand(){
+	if [ $cmdCount -eq 1 ]; then
+		errorMultipleCommand
+	fi
+	cmdCount=$((cmdCount+1))
+}
+
 validateDate(){
 	if [ "$1" = "-a" ]; then
 		if [ $atCount -eq 1 ]; then
 				errorMultipleFilter "$1"
 		fi
-	else 
+	elif [ "$1" = "-b" ]; then 
 		if [ $btCount -eq 1 ]; then
 				errorMultipleFilter "$1"
 		fi
@@ -173,9 +214,29 @@ validateDate(){
 		fi
 }
 
+pickCommand(){
+	case "$1" in
+		"infected") echo "hey you got infected";;
+		"merge") 
+				if [ $genderCount -eq 1 ]; then
+					filtered=$(echo "$logs" | awk -F ',' -v Af="$afterTime" -v Bf="$beforeTime" -v Ge="$gender" '$2 >= Af && $2 <= Bf && $4 == Ge {print $0}' )
+					echo "$filtered"
 
+				else
+					filtered=$(echo "$logs" | awk -F ',' -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf {print $0}' )
+					echo "$filtered"
+				fi;;
+	esac
+
+}
 
 ########	Control Code	########
+
+if [ $# -eq 0 ]; then
+	echo "id,datum,vek,pohlavi,kraj_nuts_kod,okres_lau_kod,nakaza_v_zahranici,nakaza_zeme_csu_kod,reportovano_khs"
+	$termInput
+fi
+
 while [ $# -gt 0 ]; do
 	option="$1"
 
@@ -192,8 +253,38 @@ while [ $# -gt 0 ]; do
 		validateDate "$1" "$2"
 		shift
 		shift;;
-       	*)	echo "ERROR: Invalid option: \""$option"\"" >&2
-		exit 1;;
+
+	"-g")
+		validateGender "$1" "$2"
+		shift
+		shift;;
+
+	"infected" | "merge" | "gender" | "age" | "daily" | "monthly" | "yearly" | "countries" | "districts" | "regions")
+		command="$1"
+		validateCommand
+		shift;;
+
+   	*)
+	   	logs="$logs$(cat $1 | awk -F , 'NR>1')$newLine"
+		shift
+		
+		
+		
+		
+		if [ $# -eq 0 ]; then
+		echo "id,datum,vek,pohlavi,kraj_nuts_kod,okres_lau_kod,nakaza_v_zahranici,nakaza_zeme_csu_kod,reportovano_khs"
+			if [ "$command" = "default" ]; then
+				command="merge"
+				
+				pickCommand "$command"
+				
+
+			else
+				pickCommand "$command"	
+
+			fi
+		fi;;
+
       esac
 done
 
