@@ -94,8 +94,7 @@ btCount=0
 genderCount=0
 gender="none"
 
-storedInput=""
-termInput="cat $storedInput"
+termInput="cat -"
 
 command="default"
 cmdCount=0
@@ -103,6 +102,8 @@ cmdCount=0
 newLine=$(printf "\r\n")
 
 filters="0000"
+
+head="id,datum,vek,pohlavi,kraj_nuts_kod,okres_lau_kod,nakaza_v_zahranici,nakaza_zeme_csu_kod,reportovano_khs"
 
 ########	Validation	########
 validateGender(){	
@@ -216,14 +217,23 @@ validateDate(){
 
 pickCommand(){
 	case "$1" in
-		"infected") echo "hey you got infected";;
+		"infected") if [ $genderCount -eq 1 ]; then
+						filtered=$(echo "$logs" | awk -F ',' -v Af="$afterTime" -v Bf="$beforeTime" -v Ge="$gender" '$2 >= Af && $2 <= Bf && $4 == Ge {count[0]++} END{print count[0]}' )
+						echo "$filtered"
+
+					else
+						filtered=$(echo "$logs" | awk -F ',' -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf {count[0]++} END{print count[0]}' )
+						echo "$filtered"
+					fi;;
 		"merge") 
 				if [ $genderCount -eq 1 ]; then
 					filtered=$(echo "$logs" | awk -F ',' -v Af="$afterTime" -v Bf="$beforeTime" -v Ge="$gender" '$2 >= Af && $2 <= Bf && $4 == Ge {print $0}' )
+					echo "$head"
 					echo "$filtered"
 
 				else
 					filtered=$(echo "$logs" | awk -F ',' -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf {print $0}' )
+					echo "$head"
 					echo "$filtered"
 				fi;;
 	esac
@@ -232,16 +242,14 @@ pickCommand(){
 
 ########	Control Code	########
 
-if [ $# -eq 0 ]; then
-	echo "id,datum,vek,pohlavi,kraj_nuts_kod,okres_lau_kod,nakaza_v_zahranici,nakaza_zeme_csu_kod,reportovano_khs"
-	$termInput
-fi
+			
+
 
 while [ $# -gt 0 ]; do
 	option="$1"
 
       case "$option" in
-        "-h")	help; shift;;
+    "-h")	help; shift;;
 	"-a")	
 		afterTime="$2"
 		validateDate "$1" "$2"
@@ -265,28 +273,50 @@ while [ $# -gt 0 ]; do
 		shift;;
 
    	*)
-	   	logs="$logs$(cat $1 | awk -F , 'NR>1')$newLine"
-		shift
-		
-		
-		
-		
-		if [ $# -eq 0 ]; then
-		echo "id,datum,vek,pohlavi,kraj_nuts_kod,okres_lau_kod,nakaza_v_zahranici,nakaza_zeme_csu_kod,reportovano_khs"
-			if [ "$command" = "default" ]; then
-				command="merge"
-				
-				pickCommand "$command"
-				
 
-			else
-				pickCommand "$command"	
+		if expr "$1" : "^\-[a-z]">/dev/null; then #If $1 is a non-existing filter
+           if [ $? -eq 0 ]; then
+                echo "Invalid filter \"$1\"">&2
+				exit 1
+        	fi
 
+        elif expr "$1" : "[a-z]*">/dev/null; then	#If $1 is expected to be a file
+           	if [ $? -eq 0 ]; then
+			   
+				logs="$logs$(cat $1 | awk -F , 'NR>1')$newLine"
+				shift
+			
+				if [ $# -eq 0 ]; then
+				#echo "id,datum,vek,pohlavi,kraj_nuts_kod,okres_lau_kod,nakaza_v_zahranici,nakaza_zeme_csu_kod,reportovano_khs"
+					if [ "$command" = "default" ]; then
+						command="merge"			
+						pickCommand "$command"
+					else
+						pickCommand "$command"	
+						
+
+					fi
+				fi
 			fi
-		fi;;
+        fi;;
+
+		
+	   	
 
       esac
 done
+
+if [ "$logs" = "" ]; then
+	logs="$logs$(cat - | awk -F , 'NR>1')$newLine"
+	if [ "$command" = "default" ]; then
+		command="merge"			
+		pickCommand "$command"
+	else
+		pickCommand "$command"	
+						
+
+	fi
+fi
 
 
 
