@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 export POSIXLY_CORRECT=yes
 #clear
 
@@ -199,11 +199,9 @@ validateDate(){
 					if [ $? -eq 0 ]; then
 						if [ "$1" = "-a" ]; then
 							atCount=$((atCount+1))
-							echo "Date Correct"
 							return 0
 						else
 							btCount=$((btCount+1))	
-							echo "Date Correct"
 							return 0
 						fi				
 					else	
@@ -254,77 +252,81 @@ pickCommand(){
 
 				else
 					filtered=$(echo "$logs" | awk -F ',' -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf && $4 == "M" {count[0]++} END{print count[0]}' )
-					if [ "$filtered" > 0 ]; then
+					if expr "$filtered" : "[1-9]*">/dev/null; then
 						echo "M: $filtered"
 					else
 						echo "M : 0"
 					fi
 					filtered=$(echo "$logs" | awk -F ',' -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf && $4 == "Z" {count[0]++} END{print count[0]}' )
-					if [ "$filtered" > 0 ]; then
+					if expr "$filtered" : "[1-9]*">/dev/null; then
 						echo "Z: $filtered"
 					else
 						echo "Z : 0"
 					fi
+
+					filtered=$(echo "$logs" | awk -F ',' -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf && ($4 != "Z" && $4 != "M") {count[0]++} END{print count[0]}' )
+					if expr "$filtered" : "[1-9]*">/dev/null; then
+						echo "None: $filtered"
+					fi
 				fi;;
 		"age")
 				if [ $genderCount -eq 1 ]; then
-					#0-5
-					filtered=$(echo "$logs" | awk -F, -v Ge="$gender" -v Af="$afterTime" -v Bf="$beforeTime" '$3 >= 0 && $3 <= 5 && $4 == Ge && $2 >= Af && $2 <= Bf' |  cut -d, -f3 | sort | uniq -c | awk '{{countAge[0]+=$1}} END {print countAge[0]}' )
-						echo "0-5	: $filtered"
+						#0-5
+					filtered=$(echo "$logs" | awk -F, -v Ge="$gender" -v Af="$afterTime" -v Bf="$beforeTime" '$3 >= 0 && $3 <= 5 && $4 == Ge && ($2 >= Af && $2 <= Bf) ' |  cut -d, -f3 | sort | uniq -c | awk '{countAge[0]+=$1} END {print countAge[0]}' )
+						if expr "$filtered" : "[1-9]*">/dev/null; then
+							echo "0-5	: $filtered"
+						else
+							echo "0-5	: 0"
+						fi
 					#6-105
 					for i in 6 16 26 36 46 56 66 76 86 96; do
-						filtered=$(echo "$logs" | awk -F, -v Ge="$gender" -v startIndex="$i" -v endIndex="$((i+9))" -v Af="$afterTime" -v Bf="$beforeTime" '$3 >= startIndex && $3 <= endIndex && $4 == Ge && $2 >= Af && $2 <= Bf' |  cut -d, -f3 | sort | uniq -c | awk '{{countAge[0]+=$1}} END {print countAge[0]}' )
+						filtered=$(echo "$logs" | awk -F, -v Ge="$gender" -v startIndex="$i" -v endIndex="$((i+9))" -v Af="$afterTime" -v Bf="$beforeTime" '$3 >= startIndex && $3 <= endIndex && $4 == Ge && ($2 >= Af && $2 <= Bf)' |  cut -d, -f3 | sort | uniq -c | awk '{countAge[0]+=$1} END {print countAge[0]}' )
 						
-						if [ "$filtered" > 0 ]; then
+						if expr "$filtered" : "[1-9]*">/dev/null; then
 							echo "$i-$((i+9))	: $filtered"
 						else
 							echo "$i-$((i+9))	: 0"
 						fi
 					done
 					#106+
-					filtered=$(echo "$logs" | awk -F, -v Ge="$gender" -v Af="$afterTime" -v Bf="$beforeTime" '$3 >= 106 && $3 <= 10000000 && $4 == Ge && $2 >= Af && $2 <= Bf' |  cut -d, -f3 | sort | uniq -c | awk '{{countAge[0]+=$1}} END {print countAge[0]}' )	
-						if [ "$filtered" > 0 ]; then
+					filtered=$(echo "$logs" | awk -F, -v Ge="$gender" -v Af="$afterTime" -v Bf="$beforeTime" '$3 >= 106 && $3 <= 10000000 && $4 == Ge && ($2 >= Af && $2 <= Bf)' |  cut -d, -f3 | sort | uniq -c | awk '{countAge[0]+=$1} END {print countAge[0]}' )	
+						if expr "$filtered" : "[1-9]*">/dev/null; then
 							echo ">105	: $filtered"
 						else
 							echo ">105	: 0"
 						fi
 					
 					#None
-					filtered=$(echo "$logs" | awk -F, -v Ge="$gender" -v Af="$afterTime" -v Bf="$beforeTime" '$3 < 0 || $3 > 10000000 && $4 == Ge && $2 >= Af && $2 <= Bf' |  cut -d, -f3 | sort | uniq -c | awk '{{countAge[0]+=$1}} END {print countAge[0]}' )	
-					if [ "$filtered" > 0 ]; then
-							echo "None	: $filtered"
-					else
-						echo "None	: 0"
-					fi
-					
-
-
+					echo "None	: 0"
 				else
 					#0-5
-					filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" '$3 >= 0 && $3 <= 5 && $2 >= Af && $2 <= Bf' |  cut -d, -f3 | sort | uniq -c | awk '{{countAge[0]+=$1}} END {print countAge[0]}' )
-						echo "0-5	: $filtered"
+					filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" '$3 >= 0 && $3 <= 5 && $2 >= Af && $2 <= Bf' |  cut -d, -f3 | sort | uniq -c | awk '{countAge[0]+=$1} END {print countAge[0]}' )
+						if expr "$filtered" : "[1-9]*">/dev/null; then
+							echo "0-5	: $filtered"
+						else
+							echo "0-5	: 0"
+						fi
 					#6-105
 					for i in 6 16 26 36 46 56 66 76 86 96; do
-						filtered=$(echo "$logs" | awk -F, -v startIndex="$i" -v endIndex="$((i+9))" -v Af="$afterTime" -v Bf="$beforeTime" '$3 >= startIndex && $3 <= endIndex && $2 >= Af && $2 <= Bf' |  cut -d, -f3 | sort | uniq -c | awk '{{countAge[0]+=$1}} END {print countAge[0]}' )
-						
-						if [ "$filtered" > 0 ]; then
+						filtered=$(echo "$logs" | awk -F, -v startIndex="$i" -v endIndex="$((i+9))" -v Af="$afterTime" -v Bf="$beforeTime" '$3 >= startIndex && $3 <= endIndex && ($2 >= Af && $2 <= Bf)' |  cut -d, -f3 | sort | uniq -c | awk '{countAge[0]+=$1} END {print countAge[0]}' )
+						if expr "$filtered" : "[1-9]*">/dev/null; then
 							echo "$i-$((i+9))	: $filtered"
 						else
 							echo "$i-$((i+9))	: 0"
 						fi
 					done
 					#106+
-					filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" '$3 >= 106 && $3 <= 10000000 && $2 >= Af && $2 <= Bf' |  cut -d, -f3 | sort | uniq -c | awk '{{countAge[0]+=$1}} END {print countAge[0]}' )	
-						if [ "$filtered" > 0 ]; then
+					filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" '$3 >= 106 && $3 <= 10000000 && ($2 >= Af && $2 <= Bf)' |  cut -d, -f3 | sort | uniq -c | awk '{countAge[0]+=$1} END {print countAge[0]}' )	
+						if expr "$filtered" : "[1-9]*">/dev/null; then
 							echo ">105	: $filtered"
 						else
 							echo ">105	: 0"
 						fi
 					
 					#None
-					filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" '$3 < 0 || $3 > 10000000 && $2 >= Af && $2 <= Bf' |  cut -d, -f3 | sort | uniq -c | awk '{{countAge[0]+=$1}} END {print countAge[0]}' )	
-					if [ "$filtered" > 0 ]; then
-							echo "None	: $filtered"
+					filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" '($3 < 0 || $3 > 10000000) && $2 >= Af && $2 <= Bf' |  cut -d, -f3 | sort | uniq -c | awk '{countAge[0]+=$1} END {print countAge[0]}' )	
+					if expr "$filtered" : "[1-9]*">/dev/null; then
+						echo "None	: $filtered"
 					else
 						echo "None	: 0"
 					fi
@@ -334,8 +336,6 @@ pickCommand(){
 }
 
 ########	Control Code	########
-
-			
 
 
 while [ $# -gt 0 ]; do
@@ -367,16 +367,22 @@ while [ $# -gt 0 ]; do
 
    	*)
 
-		if expr "$1" : "^\-[a-z]">/dev/null; then #If $1 is a non-existing filter
+		if expr "$1" : "^\-[aA-zZ]">/dev/null; then #If $1 is a non-existing filter
            if [ $? -eq 0 ]; then
                 echo "Invalid filter \"$1\"">&2
 				exit 1
         	fi
 
-        elif expr "$1" : "[a-z]*">/dev/null; then	#If $1 is expected to be a file
+        elif expr "$1" : "[aA-zZ]*">/dev/null; then	#If $1 is expected to be a file
            	if [ $? -eq 0 ]; then
-			   
-				logs="$logs$(cat $1 | awk -F , 'NR>1')$newLine"
+			   	if [[ "$1" =~ ^.*(.gz)$ ]]; then
+					logs="$logs$(gzip -d -c "$1" | awk -F , 'NR>1')$newLine"
+					#echo "$logs"
+				else
+					logs="$logs$(cat "$1" | awk -F , 'NR>0')$newLine"
+
+			   fi
+				
 				shift
 			
 				if [ $# -eq 0 ]; then
@@ -392,10 +398,6 @@ while [ $# -gt 0 ]; do
 				fi
 			fi
         fi;;
-
-		
-	   	
-
       esac
 done
 
@@ -406,8 +408,6 @@ if [ "$logs" = "" ]; then
 		pickCommand "$command"
 	else
 		pickCommand "$command"	
-						
-
 	fi
 fi
 
