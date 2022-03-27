@@ -109,6 +109,7 @@ newLine=$(printf "\r\n")
 filters="0000"
 
 head="id,datum,vek,pohlavi,kraj_nuts_kod,okres_lau_kod,nakaza_v_zahranici,nakaza_zeme_csu_kod,reportovano_khs"
+header=0
 
 ########	Validation	########
 validateGender(){	
@@ -379,7 +380,7 @@ while [ $# -gt 0 ]; do
 					logs="$logs$(gzip -d -c "$1" | awk -F , 'NR>1')$newLine"
 					#echo "$logs"
 				else
-					logs="$logs$(cat "$1" | awk -F , 'NR>0')$newLine"
+					logs="$logs$(cat "$1" | awk -F , -v header="$head" 'NR>0{if($0 == "header"){next}else{print $0}}')$newLine"
 
 			   fi
 				
