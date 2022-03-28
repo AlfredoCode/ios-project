@@ -442,6 +442,12 @@ done
 
 if [ "$logs" = "" ]; then
 	logs="$logs$(cat - | awk -F , 'NR>1')$newLine"
+	if [ "$logs" = "" ]; then
+		logs=""
+		echo "$head"
+		exit 0
+
+	fi
 	if [ "$command" = "default" ]; then
 		command="merge"			
 		pickCommand "$command"
