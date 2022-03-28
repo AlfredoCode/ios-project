@@ -104,7 +104,7 @@ termInput="cat -"
 command="default"
 cmdCount=0
 
-newLine=$(printf "\r\n")
+newLine=$(printf "\n")
 
 filters="0000"
 
@@ -228,6 +228,7 @@ pickCommand(){
 					else
 						filtered=$(echo "$logs" | awk -F ',' -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf {count[0]++} END{print count[0]}' )
 						echo "$filtered"
+						exit 0
 					fi;;
 		"merge") 
 				if [ $genderCount -eq 1 ]; then
@@ -239,6 +240,7 @@ pickCommand(){
 					filtered=$(echo "$logs" | awk -F ',' -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf {print $0}' )
 					echo "$head"
 					echo "$filtered"
+					exit 0
 				fi;;
 		"gender")
 				if [ $genderCount -eq 1 ]; then
@@ -252,23 +254,15 @@ pickCommand(){
 					fi
 
 				else
-					filtered=$(echo "$logs" | awk -F ',' -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf && $4 == "M" {count[0]++} END{print count[0]}' )
-					if expr "$filtered" : "[1-9]*">/dev/null; then
-						echo "M: $filtered"
-					else
-						echo "M : 0"
-					fi
-					filtered=$(echo "$logs" | awk -F ',' -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf && $4 == "Z" {count[0]++} END{print count[0]}' )
-					if expr "$filtered" : "[1-9]*">/dev/null; then
-						echo "Z: $filtered"
-					else
-						echo "Z : 0"
-					fi
+					filtered=$(echo "$logs" | awk -F, '{print $4}' | sort | uniq -c | awk '{print $2 ": "$1}')
+					echo "$filtered"
 
 					filtered=$(echo "$logs" | awk -F ',' -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf && ($4 != "Z" && $4 != "M") {count[0]++} END{print count[0]}' )
 					if expr "$filtered" : "[1-9]*">/dev/null; then
+						filtered=$(echo "$logs" | awk -F, '{print $2}' | sort | uniq -c | awk '{print $2 ": "$1}')
 						echo "None: $filtered"
 					fi
+					exit 0
 				fi;;
 		"age")
 				if [ $genderCount -eq 1 ]; then
@@ -299,6 +293,7 @@ pickCommand(){
 					
 					#None
 					echo "None	: 0"
+					exit 0
 				else
 					#0-5
 					filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" '$3 >= 0 && $3 <= 5 && $2 >= Af && $2 <= Bf' |  cut -d, -f3 | sort | uniq -c | awk '{countAge[0]+=$1} END {print countAge[0]}' )
@@ -330,7 +325,50 @@ pickCommand(){
 						echo "None	: $filtered"
 					else
 						echo "None	: 0"
+						exit 0
 					fi
+				fi;;
+
+		"countries")
+				if [ $genderCount -eq 1 ]; then
+					filtered=$(echo "$logs" | awk -F, -v Ge="$gender" -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf && $4 == Ge{print $8}' | sort | uniq -c | awk 'NR>1{if($2 == "CZ"){next}else{print $2": "$1}}')
+					echo "$filtered"
+					exit 0
+				else
+					filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf {print $8}' | sort | uniq -c | awk 'NR>1{if($2 == "CZ"){next}else{print $2": "$1}}')
+					echo "$filtered"
+					exit 0
+				fi;;
+
+		"yearly")
+				if [ $genderCount -eq 1 ]; then
+					filtered=$(echo "$logs" | awk -F, -v Ge="$gender" -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf && $4 == Ge{print $2}' | awk -F - '{print $1}' | sort | uniq -c | awk '{print $2 ": "$1}')
+					echo "$filtered"
+					exit 0
+				else
+					filtered=$(echo "$logs" | awk -F, '{print $2}' | awk -F - '{print $1}' | sort | uniq -c | awk '{print $2 ": "$1}')
+					echo "$filtered"
+					exit 0
+				fi;;
+		"monthly")
+				if [ $genderCount -eq 1 ]; then
+					filtered=$(echo "$logs" | awk -F, -v Ge="$gender" -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf && $4 == Ge{print $2}' | awk -F - '{print $1"-"$2}' | sort | uniq -c | awk '{print $2 ": "$1}')
+					echo "$filtered"
+					exit 0
+				else
+					filtered=$(echo "$logs" | awk -F, '{print $2}' | awk -F - '{print $1"-"$2}' | sort | uniq -c | awk '{print $2 ": "$1}')
+					echo "$filtered"
+					exit 0
+				fi;;
+		"daily")
+				if [ $genderCount -eq 1 ]; then
+					filtered=$(echo "$logs" | awk -F, -v Ge="$gender" -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf && $4 == Ge{print $2}' | sort | uniq -c | awk '{print $2 ": "$1}')
+					echo "$filtered"
+					exit 0
+				else
+					filtered=$(echo "$logs" | awk -F, '{print $2}' | sort | uniq -c | awk '{print $2 ": "$1}')
+					echo "$filtered"
+					exit 0
 				fi;;
 	esac
 
