@@ -1,5 +1,6 @@
 #!/bin/bash
 export POSIXLY_CORRECT=yes
+export LC_ALL=C
 #clear
 
 ########	HELP SECTION	########
@@ -439,7 +440,7 @@ pickCommand(){
 							echo "$filtered"
 						else
 							divider=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" -v Ge="$gender" '$2 >= Af && $2 <= Bf && $4 == Ge{print $5}' | sort | uniq -c | awk '{print $2 ": "$1}' | awk -F \: -v width="$width" -v divider="$divider" 'BEGIN{max=0;}{if(max < $2){max=$2; divider=$2/width}} END{print divider}')
-							filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" -v Ge="$gender" '$2 >= Af && $2 <= Bf && $4 == Ge{print $5}' | sort | uniq -c |  awk '{if($2 == ""){print "None: "$1}else{print $2 ": "$1}}' | awk -F \: -v divider="$divider" '{if(divider > 1.000000){printf "%s: ", $1} else {printf "%s:", $1} divider2=$2/divider; hashtags=sprintf("%*s", divider2, ""); gsub(" ", "#",hashtags); print hashtags}' | awk -F \: 'BEGIN{count=0}{if($1 == "None"){tmp = $0;count+=1;next}else{print $0}}END{if(count > 0){print tmp}}') # TODO DOES NOT WORK
+							filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" -v Ge="$gender" '$2 >= Af && $2 <= Bf && $4 == Ge{print $5}' | sort | uniq -c |  awk '{if($2 == ""){print "None: "$1}else{print $2 ": "$1}}' | awk -F \: -v divider="$divider" '{if(divider > 1.000000){printf "%s: ", $1} else {printf "%s:", $1} divider2=$2/divider; hashtags=sprintf("%*s", divider2, ""); gsub(" ", "#",hashtags); print hashtags}' | awk -F \: 'BEGIN{count=0}{if($1 == "None"){tmp = $0;count+=1;next}else{print $0}}END{if(count > 0){print tmp}}')
 							echo "$filtered"	 
 						fi
 						exit 0
@@ -640,10 +641,7 @@ while [ $# -gt 0 ]; do
 			
 				if [ $# -eq 0 ]; then
 				
-				logs=$(echo "$logs" | head -n -1 | awk -F , '{if($3 ~ /[+]?[0-9]*[.]+[0-9]+/){print "Invalid age: "$0}else{print $0}}')
-				
-				
-
+				logs=$(echo "$logs" | head -n -1 | awk -F , '{if($3 ~ /[+]?[0-9]*[.]+[0-9]+/){print "Invalid age: "$0>"/dev/stderr"}else{print $0}}')
 					if [ "$command" = "default" ]; then
 						command="merge"			
 						pickCommand "$command"
@@ -662,6 +660,7 @@ while [ $# -gt 0 ]; do
       esac
 done
 
+# If log provided by cat log | ./corona
 if [ "$logs" = "" ]; then
 	logs="$logs$(cat - )$newLine"
 	if [ "$logs" = "" ]; then
