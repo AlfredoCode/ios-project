@@ -88,6 +88,15 @@ errorFilterWithoutFile(){
 	exit 1
 }
 
+errorFilter_s(){
+	echo "Wrong position of filter \"-s\"! / No log provided!" >&2
+	exit 1
+}
+errorZeroFilter(){
+	echo "WIDTH of filter \"-s\" has to be greater than 0!" >&2
+	exit 1
+}
+
 ########	VARIABLES	########
 
 afterTime="0000-01-01"
@@ -109,7 +118,11 @@ newLine=$(printf "\n")
 filters="0000"
 
 head="id,datum,vek,pohlavi,kraj_nuts_kod,okres_lau_kod,nakaza_v_zahranici,nakaza_zeme_csu_kod,reportovano_khs"
-header=0
+
+width="not_set"
+sCount=0
+hashtags="1"
+divider=1
 
 ########	Validation	########
 validateGender(){	
@@ -135,6 +148,25 @@ validateCommand(){
 		errorMultipleCommand
 	fi
 	cmdCount=$((cmdCount+1))
+}
+
+validateWidth(){
+	if [ $sCount -eq 1 ]; then
+			errorMultipleFilter "$1"
+	fi
+	sCount=$((sCount+1))
+
+	if expr "$2" : "[0-9]*">/dev/null; then
+		if [ $2 -eq 0 ]; then
+			errorZeroFilter
+		fi
+		width=$2
+		return 0
+	else
+		width="not_set"
+		return 1
+	fi
+
 }
 
 validateDate(){
@@ -243,6 +275,7 @@ pickCommand(){
 					exit 0
 				fi;;
 		"gender")
+				
 				if [ $genderCount -eq 1 ]; then
 					filtered=$(echo "$logs" | awk -F ',' -v Af="$afterTime" -v Bf="$beforeTime" -v Ge="$gender" '$2 >= Af && $2 <= Bf && $4 == Ge {count[0]++} END{print count[0]}' )
 					if [ "$gender" = "M" ]; then
@@ -254,83 +287,107 @@ pickCommand(){
 					fi
 
 				else
-					filtered=$(echo "$logs" | awk -F, '{print $4}' | sort | uniq -c | awk '{print $2 ": "$1}')
+					filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" 'NR>1 && $2 >= Af && $2 <= Bf{print $4}' | sort | uniq -c | awk -v count=0 '{if($2 == "M" || $2 == "Z"){print $2 ": "$1}if($2 == ""){print "None: "$1}}' | awk -F \: '{if($1 == "None"){tmp=$0;next}else{print $0}} END{print tmp}')
 					echo "$filtered"
 
-					filtered=$(echo "$logs" | awk -F ',' -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf && ($4 != "Z" && $4 != "M") {count[0]++} END{print count[0]}' )
-					if expr "$filtered" : "[1-9]*">/dev/null; then
-						filtered=$(echo "$logs" | awk -F, '{print $2}' | sort | uniq -c | awk '{print $2 ": "$1}')
-						echo "None: $filtered"
-					fi
+					
 					exit 0
 				fi;;
 		"age")
 				if [ $genderCount -eq 1 ]; then
-						#0-5
+					#0-5
+					
 					filtered=$(echo "$logs" | awk -F, -v Ge="$gender" -v Af="$afterTime" -v Bf="$beforeTime" '$3 >= 0 && $3 <= 5 && $4 == Ge && ($2 >= Af && $2 <= Bf) ' |  cut -d, -f3 | sort | uniq -c | awk '{countAge[0]+=$1} END {print countAge[0]}' )
 						if expr "$filtered" : "[1-9]*">/dev/null; then
-							echo "0-5	: $filtered"
+							echo "0-5   :" $filtered
 						else
 							echo "0-5	: 0"
 						fi
-					#6-105
-					for i in 6 16 26 36 46 56 66 76 86 96; do
+					#6-15
+					filtered=$(echo "$logs" | awk -F, -v Ge="$gender" -v Af="$afterTime" -v Bf="$beforeTime" '$3 >= 6 && $3 <= 15 && $4 == Ge && ($2 >= Af && $2 <= Bf) ' |  cut -d, -f3 | sort | uniq -c | awk '{countAge[0]+=$1} END {print countAge[0]}' )
+						if expr "$filtered" : "[1-9]*">/dev/null; then
+							echo "6-15  :" $filtered
+						else
+							echo "6-15  : 0"
+						fi
+					#16-95
+					for i in 16 26 36 46 56 66 76 86; do
 						filtered=$(echo "$logs" | awk -F, -v Ge="$gender" -v startIndex="$i" -v endIndex="$((i+9))" -v Af="$afterTime" -v Bf="$beforeTime" '$3 >= startIndex && $3 <= endIndex && $4 == Ge && ($2 >= Af && $2 <= Bf)' |  cut -d, -f3 | sort | uniq -c | awk '{countAge[0]+=$1} END {print countAge[0]}' )
 						
 						if expr "$filtered" : "[1-9]*">/dev/null; then
-							echo "$i-$((i+9))	: $filtered"
+							echo "$i-$((i+9)) :" $filtered
 						else
-							echo "$i-$((i+9))	: 0"
+							echo "$i-$((i+9))  : 0"
 						fi
 					done
+					#96-105
+					filtered=$(echo "$logs" | awk -F, -v Ge="$gender" -v Af="$afterTime" -v Bf="$beforeTime" '$3 >= 96 && $3 <= 105 && $4 == Ge && ($2 >= Af && $2 <= Bf)' |  cut -d, -f3 | sort | uniq -c | awk '{countAge[0]+=$1} END {print countAge[0]}' )	
+						if expr "$filtered" : "[1-9]*">/dev/null; then
+							echo "96-105:" $filtered
+						else
+							echo "96-105: 0"
+						fi
 					#106+
 					filtered=$(echo "$logs" | awk -F, -v Ge="$gender" -v Af="$afterTime" -v Bf="$beforeTime" '$3 >= 106 && $3 <= 10000000 && $4 == Ge && ($2 >= Af && $2 <= Bf)' |  cut -d, -f3 | sort | uniq -c | awk '{countAge[0]+=$1} END {print countAge[0]}' )	
 						if expr "$filtered" : "[1-9]*">/dev/null; then
-							echo ">105	: $filtered"
+							echo ">105  :" $filtered
 						else
 							echo ">105	: 0"
 						fi
 					
 					#None
-					echo "None	: 0"
+					echo "None	:" "0"	
 					exit 0
 				else
 					#0-5
 					filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" '$3 >= 0 && $3 <= 5 && $2 >= Af && $2 <= Bf' |  cut -d, -f3 | sort | uniq -c | awk '{countAge[0]+=$1} END {print countAge[0]}' )
 						if expr "$filtered" : "[1-9]*">/dev/null; then
-							echo "0-5	: $filtered"
+							echo "0-5   :" $filtered
 						else
-							echo "0-5	: 0"
+							echo "0-5   : 0"
 						fi
-					#6-105
-					for i in 6 16 26 36 46 56 66 76 86 96; do
+					#6-15
+					filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" '$3 >= 6 && $3 <= 15 && ($2 >= Af && $2 <= Bf) ' |  cut -d, -f3 | sort | uniq -c | awk '{countAge[0]+=$1} END {print countAge[0]}' )
+						if expr "$filtered" : "[1-9]*">/dev/null; then
+							echo "6-15  :" $filtered
+						else
+							echo "6-15  : 0"
+						fi
+					#6-95
+					for i in 16 26 36 46 56 66 76 86; do
 						filtered=$(echo "$logs" | awk -F, -v startIndex="$i" -v endIndex="$((i+9))" -v Af="$afterTime" -v Bf="$beforeTime" '$3 >= startIndex && $3 <= endIndex && ($2 >= Af && $2 <= Bf)' |  cut -d, -f3 | sort | uniq -c | awk '{countAge[0]+=$1} END {print countAge[0]}' )
 						if expr "$filtered" : "[1-9]*">/dev/null; then
-							echo "$i-$((i+9))	: $filtered"
+							echo "$i-$((i+9)) :" $filtered
 						else
-							echo "$i-$((i+9))	: 0"
+							echo "$i-$((i+9)) : 0"
 						fi
 					done
+					#96-105
+					filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" '$3 >= 96 && $3 <= 105 && ($2 >= Af && $2 <= Bf)' |  cut -d, -f3 | sort | uniq -c | awk '{countAge[0]+=$1} END {print countAge[0]}' )	
+						if expr "$filtered" : "[1-9]*">/dev/null; then
+							echo "96-105:" $filtered
+						else
+							echo "96-105: 0"
+						fi
 					#106+
 					filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" '$3 >= 106 && $3 <= 10000000 && ($2 >= Af && $2 <= Bf)' |  cut -d, -f3 | sort | uniq -c | awk '{countAge[0]+=$1} END {print countAge[0]}' )	
 						if expr "$filtered" : "[1-9]*">/dev/null; then
-							echo ">105	: $filtered"
+							echo ">105  :" $filtered
 						else
-							echo ">105	: 0"
+							echo ">105  : 0"
 						fi
 					
 					#None
 					filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" '($3 < 0 || $3 > 10000000) && $2 >= Af && $2 <= Bf' |  cut -d, -f3 | sort | uniq -c | awk '{countAge[0]+=$1} END {print countAge[0]}' )	
-					if expr "$filtered" : "[1-9]*">/dev/null; then
-						echo "None	: $filtered"
-					else
-						echo "None	: 0"
-						exit 0
+					if expr "$filtered" : "[1-9]*[0-9]*">/dev/null; then
+						echo "None  :" $filtered				
 					fi
+					exit 0
 				fi;;
 
 		"countries")
 				if [ $genderCount -eq 1 ]; then
+					
 					filtered=$(echo "$logs" | awk -F, -v Ge="$gender" -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf && $4 == Ge{print $8}' | sort | uniq -c | awk 'NR>1{if($2 == "CZ"){next}else{print $2": "$1}}')
 					echo "$filtered"
 					exit 0
@@ -340,33 +397,170 @@ pickCommand(){
 					exit 0
 				fi;;
 
+		"districts")
+				if [ $genderCount -eq 1 ]; then
+					if [ $sCount -eq 1 ]; then	# Filter -s is present
+						if [ "$width" = "not_set" ]; then	# Optional parameter is present
+							filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" -v Ge="$gender" '$2 >= Af && $2 <= Bf && $4 == Ge{print $6}' | sort | uniq -c | awk '{if($2 == ""){print "None: "$1}else{print $2 ": "$1}}' | awk -F \: '{divider=$2/1000;if(divider > 1.000000){printf "%s: ", $1} else {printf "%s:", $1} hashtags=sprintf("%*s", divider, ""); gsub(" ", "#",hashtags); print hashtags;}' | awk -F \: '{if($1 == "None"){tmp = $0;next}else{print $0}}END{print tmp}')
+							echo "$filtered"
+						else
+							divider=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" -v Ge="$gender" '$2 >= Af && $2 <= Bf && $4 == Ge{print $6}' | sort | uniq -c | awk '{print $2 ": "$1}' | awk -F \: -v width="$width" -v divider="$divider" 'BEGIN{max=0;}{if(max < $2){max=$2; divider=$2/width}} END{print divider}')
+							filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" -v Ge="$gender" '$2 >= Af && $2 <= Bf && $4 == Ge{print $6}' | sort | uniq -c | awk '{if($2 == ""){print "None: "$1}else{print $2 ": "$1}}' | awk -F \: -v divider="$divider" '{if(divider > 1.000000){printf "%s: ", $1} else {printf "%s:", $1} divider2=$2/divider; hashtags=sprintf("%*s", divider2, ""); gsub(" ", "#",hashtags); print hashtags}' | awk -F \: '{if($1 == "None"){tmp = $0;next}else{print $0}}END{print tmp}')
+							echo "$filtered"	 
+						fi
+						exit 0
+					fi
+					filtered=$(echo "$logs" | awk -F, -v Ge="$gender" -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf && $4 == Ge{print $6}' | sort | uniq -c | awk '{if($2 == ""){print "None: "$1}else{print $2 ": "$1}}'| awk -F \: '{if($1 == "None"){tmp = $0;next}else{print $0}}END{print tmp}')
+					echo "$filtered"
+					exit 0
+				else
+					if [ $sCount -eq 1 ]; then	# Filter -s is present
+						if [ "$width" = "not_set" ]; then	# Optional parameter is present
+							filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf {print $6}' | sort | uniq -c | awk '{if($2 == ""){print "None: "$1}else{print $2 ": "$1}}' | awk -F \: '{divider=$2/1000;if(divider > 1.000000){printf "%s: ", $1} else {printf "%s:", $1} hashtags=sprintf("%*s", divider, ""); gsub(" ", "#",hashtags); print hashtags;}' | awk -F \: '{if($1 == "None"){tmp = $0;next}else{print $0}}END{print tmp}')
+							echo "$filtered"
+						else
+							divider=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf {print $6}' | sort | uniq -c | awk '{print $2 ": "$1}' | awk -F \: -v width="$width" -v divider="$divider" 'BEGIN{max=0;}{if(max < $2){max=$2; divider=$2/width}} END{print divider}')
+							filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf {print $6}' | sort | uniq -c | awk '{if($2 == ""){print "None: "$1}else{print $2 ": "$1}}' | awk -F \: -v divider="$divider" '{if(divider > 1.000000){printf "%s: ", $1} else {printf "%s:", $1} divider2=$2/divider; hashtags=sprintf("%*s", divider2, ""); gsub(" ", "#",hashtags); print hashtags}' | awk -F \: '{if($1 == "None"){tmp = $0;next}else{print $0}}END{print tmp}')
+							echo "$filtered"
+						fi
+						exit 0
+					fi
+
+					filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf {print $6}' | sort | uniq -c | awk -v count=0 '{if($2 ~ /CZ*/){print $2 ": "$1} if($2 == ""){print "None: "$1}}' | awk -F \: '{if($1 == "None"){tmp=$0;next}else{print $0}} END{print tmp}')
+					echo "$filtered"
+					exit 0
+				fi;;
+
+		"regions")
+				if [ $genderCount -eq 1 ]; then
+					if [ $sCount -eq 1 ]; then	# Filter -s is present
+						if [ "$width" = "not_set" ]; then	# Optional parameter is present
+							filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" -v Ge="$gender" '$2 >= Af && $2 <= Bf && $4 == Ge{print $5}' | sort | uniq -c | awk '{if($2 == ""){print "None: "$1}else{print $2 ": "$1}}' | awk -F \: '{divider=$2/1000;if(divider > 1.000000){printf "%s: ", $1} else {printf "%s:", $1} hashtags=sprintf("%*s", divider, ""); gsub(" ", "#",hashtags); print hashtags;}' | awk -F \: '{if($1 == "None"){tmp = $0;next}else{print $0}}END{print tmp}')
+							echo "$filtered"
+						else
+							divider=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" -v Ge="$gender" '$2 >= Af && $2 <= Bf && $4 == Ge{print $5}' | sort | uniq -c | awk '{print $2 ": "$1}' | awk -F \: -v width="$width" -v divider="$divider" 'BEGIN{max=0;}{if(max < $2){max=$2; divider=$2/width}} END{print divider}')
+							filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" -v Ge="$gender" '$2 >= Af && $2 <= Bf && $4 == Ge{print $5}' | sort | uniq -c |  awk '{if($2 == ""){print "None: "$1}else{print $2 ": "$1}}' | awk -F \: -v divider="$divider" '{if(divider > 1.000000){printf "%s: ", $1} else {printf "%s:", $1} divider2=$2/divider; hashtags=sprintf("%*s", divider2, ""); gsub(" ", "#",hashtags); print hashtags}' | awk -F \: 'BEGIN{count=0}{if($1 == "None"){tmp = $0;count+=1;next}else{print $0}}END{if(count > 0){print tmp}}') # TODO DOES NOT WORK
+							echo "$filtered"	 
+						fi
+						exit 0
+					fi
+					filtered=$(echo "$logs" | awk -F, -v Ge="$gender" -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf && $4 == Ge{print $5}' | sort | uniq -c |  awk '{if($2 == ""){print "None: "$1}else{print $2 ": "$1}}'| awk -F \: '{if($1 == "None"){tmp = $0;next}else{print $0}}END{print tmp}')
+					echo "$filtered"
+					exit 0
+				else
+					if [ $sCount -eq 1 ]; then	# Filter -s is present
+						if [ "$width" = "not_set" ]; then	# Optional parameter is present
+							filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf {print $5}' | sort | uniq -c | awk '{if($2 == ""){print "None: "$1}else{print $2 ": "$1}}' | awk -F \: '{divider=$2/10000;if(divider > 1.000000){printf "%s: ", $1} else {printf "%s:", $1} hashtags=sprintf("%*s", divider, ""); gsub(" ", "#",hashtags); print hashtags;}' | awk -F \: '{if($1 == "None"){tmp = $0;next}else{print $0}}END{print tmp}')
+							echo "$filtered"
+						else
+							divider=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf {print $5}' | sort | uniq -c | awk '{print $2 ": "$1}' | awk -F \: -v width="$width" -v divider="$divider" 'BEGIN{max=0;}{if(max < $2){max=$2; divider=$2/width}} END{print divider}')
+							filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" '{if($2 >= Af && $2 <= Bf ){print $5}}' | sort | uniq -c | awk '{if($2 == ""){print "None: "$1}else{print $2 ": "$1}}' | awk -F \: -v divider="$divider" '{if(divider > 1.000000){printf "%s: ", $1} else {printf "%s:", $1} divider2=$2/divider; hashtags=sprintf("%*s", divider2, ""); gsub(" ", "#",hashtags); print hashtags}' | awk -F \: 'BEGIN{count=0}{if($1 == "None"){tmp = $0;count+=1;next}else{print $0}}END{if(count > 0){print tmp}}')
+							echo "$filtered"
+						fi
+						exit 0
+					fi
+
+					filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf {print $5}' | sort | uniq -c | awk -v count=0 '{if($2 ~ /CZ*/){print $2 ": "$1} if($2 == ""){print "None: "$1}}' | awk -F \: '{if($1 == "None"){tmp=$0;next}else{print $0}} END{print tmp}')
+					echo "$filtered"
+					exit 0
+				fi;;
+
 		"yearly")
 				if [ $genderCount -eq 1 ]; then
+					if [ $sCount -eq 1 ]; then	# Filter -s is present
+						if [ "$width" = "not_set" ]; then	# Optional parameter is present
+							filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" -v Ge="$gender" '$2 >= Af && $2 <= Bf && $4 == Ge{print $2}' | awk -F - '{print $1}' | sort | uniq -c | awk '{print $2 ": "$1}' | awk -F \: '{divider=$2/100000;if(divider > 1.000000){printf "%s: ", $1} else {printf "%s:", $1} hashtags=sprintf("%*s", divider, ""); gsub(" ", "#",hashtags); print hashtags;}')
+							echo "$filtered"
+						else
+							divider=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" -v Ge="$gender" '$2 >= Af && $2 <= Bf && $4 == Ge{print $2}' | awk -F - '{print $1}' | sort | uniq -c | awk '{print $2 ": "$1}' | awk -F \: -v width="$width" -v divider="$divider" 'BEGIN{max=0;}{if(max < $2){max=$2; divider=$2/width}} END{print divider}')
+							filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" -v Ge="$gender" '$2 >= Af && $2 <= Bf && $4 == Ge{print $2}' | awk -F - '{print $1}' | sort | uniq -c | awk '{print $2 ": "$1}' | awk -F \: -v divider="$divider" '{if(divider > 1.000000){printf "%s: ", $1} else {printf "%s:", $1} divider2=$2/divider; hashtags=sprintf("%*s", divider2, ""); gsub(" ", "#",hashtags); print hashtags}')
+							echo "$filtered"	 
+						fi
+						exit 0
+					fi
 					filtered=$(echo "$logs" | awk -F, -v Ge="$gender" -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf && $4 == Ge{print $2}' | awk -F - '{print $1}' | sort | uniq -c | awk '{print $2 ": "$1}')
 					echo "$filtered"
 					exit 0
 				else
-					filtered=$(echo "$logs" | awk -F, '{print $2}' | awk -F - '{print $1}' | sort | uniq -c | awk '{print $2 ": "$1}')
+					if [ $sCount -eq 1 ]; then	# Filter -s is present
+						if [ "$width" = "not_set" ]; then	# Optional parameter is present
+							filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf {print $2}' | awk -F - '{print $1}' | sort | uniq -c | awk '{print $2 ": "$1}' | awk -F \: '{divider=$2/100000;if(divider > 1.000000){printf "%s: ", $1} else {printf "%s:", $1} hashtags=sprintf("%*s", divider, ""); gsub(" ", "#",hashtags); print hashtags;}')
+							echo "$filtered"
+						else
+							divider=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf {print $2}' | awk -F - '{print $1}' | sort | uniq -c | awk '{print $2 ": "$1}' | awk -F \: -v width="$width" -v divider="$divider" 'BEGIN{max=0;}{if(max < $2){max=$2; divider=$2/width}} END{print divider}')
+							filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf {print $2}' | awk -F - '{print $1}' | sort | uniq -c | awk '{print $2 ": "$1}' | awk -F \: -v divider="$divider" '{if(divider > 1.000000){printf "%s: ", $1} else {printf "%s:", $1} divider2=$2/divider; hashtags=sprintf("%*s", divider2, ""); gsub(" ", "#",hashtags); print hashtags}')
+							echo "$filtered"
+						fi
+						exit 0
+					fi
+					filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" '{if(NR>1 && $2 >= Af && $2 <= Bf){print $2}else if($2 == ""){print "None"}}' | awk -F - '{print $1}' | sort | uniq -c | awk '{print $2 ": "$1}')
 					echo "$filtered"
 					exit 0
 				fi;;
 		"monthly")
 				if [ $genderCount -eq 1 ]; then
-					filtered=$(echo "$logs" | awk -F, -v Ge="$gender" -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf && $4 == Ge{print $2}' | awk -F - '{print $1"-"$2}' | sort | uniq -c | awk '{print $2 ": "$1}')
+					if [ $sCount -eq 1 ]; then	# Filter -s is present
+						if [ "$width" = "not_set" ]; then	# Optional parameter is present
+							filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" -v Ge="$gender" '$2 >= Af && $2 <= Bf && $4 == Ge{print $2}' | awk -F - '{print $1"-"$2}' | sort | uniq -c | awk '{print $2 ": "$1}' | awk -F \: '{divider=$2/10000;if(divider > 1.000000){printf "%s: ", $1} else {printf "%s:", $1} hashtags=sprintf("%*s", divider, ""); gsub(" ", "#",hashtags); print hashtags;}')
+							echo "$filtered"
+						else
+							divider=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" -v Ge="$gender" '$2 >= Af && $2 <= Bf && $4 == Ge{print $2}' | awk -F - '{print $1"-"$2}' | sort | uniq -c | awk '{print $2 ": "$1}' | awk -F \: -v width="$width" -v divider="$divider" 'BEGIN{max=0;}{if(max < $2){max=$2; divider=$2/width}} END{print divider}')
+							filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" -v Ge="$gender" '$2 >= Af && $2 <= Bf && $4 == Ge{print $2}' | awk -F - '{print $1"-"$2}' | sort | uniq -c | awk '{print $2 ": "$1}' | awk -F \: -v divider="$divider" '{if(divider > 1.000000){printf "%s: ", $1} else {printf "%s:", $1} divider2=$2/divider; hashtags=sprintf("%*s", divider2, ""); gsub(" ", "#",hashtags); print hashtags}')
+							echo "$filtered"	 
+						fi
+						exit 0
+					fi
+					filtered=$(echo "$logs" | awk -F, -v Ge="$gender" -v Af="$afterTime" -v Bf="$beforeTime" '{if($2 >= Af && $2 <= Bf && $4 == Ge){print $2}}' | awk -F - '{print $1"-"$2}' | sort | uniq -c | awk '{print $2 ": "$1}')
 					echo "$filtered"
 					exit 0
 				else
-					filtered=$(echo "$logs" | awk -F, '{print $2}' | awk -F - '{print $1"-"$2}' | sort | uniq -c | awk '{print $2 ": "$1}')
+					if [ $sCount -eq 1 ]; then	# Filter -s is present
+						if [ "$width" = "not_set" ]; then	# Optional parameter is present
+							filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf {print $2}' | awk -F - '{print $1"-"$2}' | sort | uniq -c | awk '{print $2 ": "$1}' | awk -F \: '{divider=$2/10000;if(divider > 1.000000){printf "%s: ", $1} else {printf "%s:", $1} hashtags=sprintf("%*s", divider, ""); gsub(" ", "#",hashtags); print hashtags;}')
+							echo "$filtered"
+						else
+							divider=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" -v Ge="$gender" '$2 >= Af && $2 <= Bf {print $2}' | awk -F - '{print $1"-"$2}' | sort | uniq -c | awk '{print $2 ": "$1}' | awk -F \: -v width="$width" -v divider="$divider" 'BEGIN{max=0;}{if(max < $2){max=$2; divider=$2/width}} END{print divider}')
+							filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" -v Ge="$gender" '$2 >= Af && $2 <= Bf {print $2}' | awk -F - '{print $1"-"$2}' | sort | uniq -c | awk '{print $2 ": "$1}' | awk -F \: -v divider="$divider" '{if(divider > 1.000000){printf "%s: ", $1} else {printf "%s:", $1} divider2=$2/divider; hashtags=sprintf("%*s", divider2, ""); gsub(" ", "#",hashtags); print hashtags}')
+							echo "$filtered"
+						fi
+						exit 0
+					fi
+
+					filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" '{if(NR>1 && $2 >= Af && $2 <= Bf){print $2}else if($2 == ""){print "None"}}' | awk -F - '{print $1"-"$2}' | sort | uniq -c | awk '{print $2 ": "$1}')
 					echo "$filtered"
 					exit 0
 				fi;;
 		"daily")
 				if [ $genderCount -eq 1 ]; then
-					filtered=$(echo "$logs" | awk -F, -v Ge="$gender" -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf && $4 == Ge{print $2}' | sort | uniq -c | awk '{print $2 ": "$1}')
+					if [ $sCount -eq 1 ]; then	# Filter -s is present
+						if [ "$width" = "not_set" ]; then	# Optional parameter is present
+							filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" -v Ge="$gender" '$2 >= Af && $2 <= Bf && $4 == Ge{print $2}' | sort | uniq -c | awk '{print $2 ": "$1}' | awk -F \: '{divider=$2/500;if(divider > 1.000000){printf "%s: ", $1} else {printf "%s:", $1} hashtags=sprintf("%*s", divider, ""); gsub(" ", "#",hashtags); print hashtags;}')
+							echo "$filtered"
+						else
+							divider=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" -v Ge="$gender" '$2 >= Af && $2 <= Bf && $4 == Ge{print $2}' | sort | uniq -c | awk '{print $2 ": "$1}' | awk -F \: -v width="$width" -v divider="$divider" 'BEGIN{max=0;}{if(max < $2){max=$2; divider=$2/width}} END{print divider}')
+							filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" -v Ge="$gender" '$2 >= Af && $2 <= Bf && $4 == Ge{print $2}' | sort | uniq -c | awk '{print $2 ": "$1}' | awk -F \: -v divider="$divider" '{if(divider > 1.000000){printf "%s: ", $1} else {printf "%s:", $1} divider2=$2/divider; hashtags=sprintf("%*s", divider2, ""); gsub(" ", "#",hashtags); print hashtags}')
+							echo "$filtered"	
+						fi
+						exit 0
+					fi
+					# Filter -s is not present
+					filtered=$(echo "$logs" | awk -F, -v Ge="$gender" -v Af="$afterTime" -v Bf="$beforeTime" '{if($2 >= Af && $2 <= Bf && $4 == Ge){print $2}}' | sort | uniq -c | awk '{print $2 ": "$1}')
 					echo "$filtered"
 					exit 0
 				else
-					filtered=$(echo "$logs" | awk -F, '{print $2}' | sort | uniq -c | awk '{print $2 ": "$1}')
+					if [ $sCount -eq 1 ]; then	# Filter -s is present
+						if [ "$width" = "not_set" ]; then	# Optional parameter is present
+							filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" '$2 >= Af && $2 <= Bf {print $2}' | sort | uniq -c | awk '{print $2 ": "$1}' | awk -F \: '{divider=$2/500;if(divider > 1.000000){printf "%s: ", $1} else {printf "%s:", $1} hashtags=sprintf("%*s", divider, ""); gsub(" ", "#",hashtags); print hashtags;}')
+							echo "$filtered"
+						else
+							divider=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" -v Ge="$gender" '$2 >= Af && $2 <= Bf {print $2}' | sort | uniq -c | awk '{print $2 ": "$1}' | awk -F \: -v width="$width" -v divider="$divider" 'BEGIN{max=0;}{if(max < $2){max=$2; divider=$2/width}} END{print divider}')
+							filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" -v Ge="$gender" '$2 >= Af && $2 <= Bf {print $2}' | sort | uniq -c | awk '{print $2 ": "$1}' | awk -F \: -v divider="$divider" '{if(divider > 1.000000){printf "%s: ", $1} else {printf "%s:", $1} divider2=$2/divider; hashtags=sprintf("%*s", divider2, ""); gsub(" ", "#",hashtags); print hashtags}')
+							echo "$filtered"
+						fi
+						exit 0
+					fi
+
+					filtered=$(echo "$logs" | awk -F, -v Af="$afterTime" -v Bf="$beforeTime" '{if(NR>1 && $2 >= Af && $2 <= Bf ){print $2}else if($2 == ""){print "None"}}' | sort | uniq -c | awk '{print $2 ": "$1}')
 					echo "$filtered"
 					exit 0
 				fi;;
@@ -381,7 +575,9 @@ while [ $# -gt 0 ]; do
 	option="$1"
 
       case "$option" in
-    "-h")	help; shift;;
+    "-h")	
+		help 
+		shift;;
 	"-a")	
 		afterTime="$2"
 		validateDate "$1" "$2"
@@ -399,6 +595,22 @@ while [ $# -gt 0 ]; do
 		shift
 		shift;;
 
+	"-s")
+		width="$2"
+		validateWidth "$1" "$2"
+		if [ $? -eq 0 ]; then
+			shift;
+			shift;
+			if [ $# -eq 0 ]; then
+				errorFilter_s
+			fi
+		else
+			shift;
+			if [ $# -eq 0 ]; then
+				errorFilter_s
+			fi
+		fi;;
+
 	"infected" | "merge" | "gender" | "age" | "daily" | "monthly" | "yearly" | "countries" | "districts" | "regions")
 		command="$1"
 		validateCommand
@@ -406,26 +618,32 @@ while [ $# -gt 0 ]; do
 
    	*)
 
-		if expr "$1" : "^\-[aA-zZ]">/dev/null; then #If $1 is a non-existing filter
+		if expr "$1" : "^\-[aA0-zZ9]">/dev/null; then #If $1 is a non-existing filter
            if [ $? -eq 0 ]; then
                 echo "Invalid filter \"$1\"">&2
 				exit 1
         	fi
 
-        elif expr "$1" : "[aA-zZ]*">/dev/null; then	#If $1 is expected to be a file
+        elif expr "$1" : "^[aA-zZ]*">/dev/null; then	#If $1 is expected to be a file
            	if [ $? -eq 0 ]; then
-			   	if [[ "$1" =~ ^.*(.gz)$ ]]; then
-					logs="$logs$(gzip -d -c "$1" | awk -F , 'NR>1')$newLine"
+			   	if expr "$1" : ".*\.gz">/dev/null; then
+					logs+=$(gzip -d -c "$1";printf "\r"$newLine)
+					#echo "$logs"
+				elif expr "$1" : ".*\.bz2">/dev/null; then
+					logs+=$(bzcat -d -c "$1";printf "\r"$newLine)
 					#echo "$logs"
 				else
-					logs="$logs$(cat "$1" | awk -F , -v header="$head" 'NR>0{if($0 == "header"){next}else{print $0}}')$newLine"
-
+					logs+=$(cat "$1";printf "\r"$newLine)
 			   fi
 				
 				shift
 			
 				if [ $# -eq 0 ]; then
-				#echo "id,datum,vek,pohlavi,kraj_nuts_kod,okres_lau_kod,nakaza_v_zahranici,nakaza_zeme_csu_kod,reportovano_khs"
+				
+				logs=$(echo "$logs" | head -n -1 | awk -F , '{if($3 ~ /[+]?[0-9]*[.]+[0-9]+/){print "Invalid age: "$0}else{print $0}}')
+				
+				
+
 					if [ "$command" = "default" ]; then
 						command="merge"			
 						pickCommand "$command"
@@ -436,12 +654,16 @@ while [ $# -gt 0 ]; do
 					fi
 				fi
 			fi
+		else
+			logs=""
+			echo "$head"
+			exit 0
         fi;;
       esac
 done
 
 if [ "$logs" = "" ]; then
-	logs="$logs$(cat - | awk -F , 'NR>1')$newLine"
+	logs="$logs$(cat - )$newLine"
 	if [ "$logs" = "" ]; then
 		logs=""
 		echo "$head"
